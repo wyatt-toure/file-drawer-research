@@ -1,0 +1,613 @@
+---
+title: "Analysis for 'Shifting guppy object preferences (version 1)'"
+bibliography: reference-info/references.bib
+csl: reference-info/elife-citation-style.csl
+link-citations: yes
+output:
+  bookdown::html_document2:
+    
+    toc: true
+    toc_depth: 4
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    df_print: paged
+    css: ~/Documents/file-drawer-research-github/styles.css
+    number_sections: false
+    
+knit: (function(input, ...) {
+    rmarkdown::render(
+      input,
+      output_file = 'docs/guppy-colour-learning-v1-analysis')
+  })
+---
+<div class="topnav">
+<a href="index.html">My File Drawer</a>
+<a href="https://github.com/wyatt-toure/file-drawer-research" style = "float: right;">GitHub</a>
+<div class="dropdown">
+<button class="dropbtn">Analyses <img src="caret-down.svg" width = "10"></img></button>
+<div class="dropdown-content">
+<a href="guppy-novel-object-recognition-analysis.html">Guppy novel object recognition</a>
+<a href="guppy-colour-learning-v1-analysis.html">Guppy colour learning v1</a>
+</div>
+</div>
+<div class="dropdown">
+<button class="dropbtn">Reports <img src="caret-down.svg" width = "10"></img></button>
+<div class="dropdown-content">
+<a href="guppy-novel-object-recognition-report.html">Guppy novel object recognition</a>
+<a href="guppy-colour-learning-v1-report.html">Guppy colour learning v1</a>
+</div>
+</div>
+<a href="index.html" style = "float: right;">Home</a>
+</div>
+
+<p class="author-name">M. Wyatt Toure</p>
+
+<p>e-mail: `m_wyatt.toure@mail.mcgill.ca`</p>
+
+***
+
+```{r library-prep, include=FALSE}
+library(PNWColors)
+library(lme4)
+library(tidyr)
+library(lmerTest)
+library(ggplot2)
+library(ggpubr)
+library(DHARMa)
+library(dplyr)
+library(effects)
+library(broom)
+library(broom.mixed)
+library(knitr)
+library(tidyext)
+library(emmeans)
+library(kableExtra)
+library(cowplot)
+source('R/rename-lme4-model.R')
+source('R/format-p-value.R')
+```
+
+```{r color-palette, echo=FALSE}
+# Getting tableau colour palette
+red <- "#e15759"
+purple <- "#b07aa1"
+yellow <- "#edc948"
+orange <- "#f28e2b"
+blue <- "#4e79a7"
+pink <- "#ff9da7"
+lblue <- "#76b7b2"
+green <- "#59a14f"
+grey <- "#bab0ac"
+white <- "#D0D3D4"
+
+# Storing colour values
+color_values <- c(blue, green, grey, orange, purple, red, white, yellow)
+```
+
+## Brief overview
+
+This page reports the data preparation and analyses for the experiment described
+in <span style="text-decoration:underline">'Shifting guppy object preferences
+(version 1)'</span>. The raw data used to conduct these analyses are available
+in the [shfiting-object-preferences-data.csv]() file. Descriptions of the variables
+found in the data set are given in the metadata section of the [README]() file.
+The Rmd script to reproduce the analysis and this site are in the
+[analysis-script-colour-project.Rmd]() file. The methods used to produce this
+data can be found on the [Methods]() page.
+
+***
+
+## Data prep
+
+### Checking data
+
+I first imported my data and set the variable `trial` to a factor since it is read 
+in as an integer with values (0 and 11).
+
+```{r data-import, echo=TRUE}
+# Reading in data
+preference_data <- read.csv("data/shfiting-object-preferences-data.csv")
+
+# Set trial to factor 
+preference_data$trial <- as.factor(preference_data$trial)
+```
+
+Next I performed data checks using the `describe_all_cat()` function from the `tidyext` 
+package. I first checked how many observations I have for each individual ID. 
+
+```{r id-data-check, echo=TRUE}
+checked_id_data <-
+  describe_all_cat(preference_data) %>%
+  filter(Variable == "id")
+```
+
+The expected number of observations is 2
+for each individual since there were two test trials (trial 0 and trial 11) for which I collected
+data. What we see in Table \@ref(tab:show-id-data-check) is that the vast majority of fish have 2 observations but 3 individuals are missing 2 observations due to mortality during the experiment. 
+
+
+```{r show-id-data-check, echo=FALSE}
+kable(
+  checked_id_data %>%
+    arrange(Frequency),
+  caption = "Scrollable table of the number of observations for each individual ID and the
+             percent contribution that individual ID makes to the total number of 
+             observations in the data set."
+) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+</br>
+
+I next checked the number of observations I had for each level of my categorical variables (Table \@ref(tab:show-data-check-categorical)). 
+
+```{r data-check-categorical, echo=TRUE}
+checked_cat_dat <-
+  describe_all_cat(preference_data) %>%
+  filter(Variable != "id" & Variable != "trained.object")
+```
+
+Most individuals (26%) were trained to a green object with blue and yellow being the second most numerous (17%). Grey, orange, red, white, and purple all had below 10%. I chose the objects randomly which led to this uneven distribution of colours but if I could do the project again I would have assigned an even number of individuals to each colour. I also would have had less colours to increase the sample size per treatment.
+
+I also had more females than males choosing to use a 70 / 30 split of males. My reasoning for this at the time was we had evidence that males are less food motivated and I was worried about not seeing a learning effect in males. I still included some males for a few reasons. I thought that if there were sex differences they would be large and thus easily detectable with a smaller sample of males but if there weren't then the extra sample size would be useful. I evenly split whether the trained object was on the left side of the tank across all guppies. 
+
+```{r show-data-check-categorical, echo=FALSE}
+kable(
+  checked_cat_dat,
+  caption = "The number of observations for each level of the categorical variables,
+  'trial', 'object colour', 'sex', and 'object side' as well as the
+             percent contribution a particular level of a factor makes to the total number of 
+             observations in the factor."
+) %>% 
+  kable_styling()
+```
+
+
+### Variable creation
+
+To get the object preference metrics I needed to create additional variables from
+the raw data. I did this by taking the time spent near either the left or right object 
+and assigning these values as corresponding to either the trained object or the 
+untrained object based on what side the trained object was on during the test 
+with the `mutate()` and `case_when()` functions. I also summed the time near the left and right objects to get the total time spent near objects. This led to the 
+creation of the following 5 variables:
+
+  - `time.with.trained.object`
+  - `time.with.untrained.object`
+  - `rewarding.object.preference`
+  - `rewarding.object.preference.prop`
+  - `time.with.both.objects`
+
+<button class="btn btn-primary" data-toggle="collapse" data-target="#variable-creation-code"> See variable creation code </button>  
+<div id="variable-creation-code" class="collapse">  
+
+```{r data-prep, echo=TRUE}
+# Making new variables
+
+## Creating 'time with trained object'
+preference_data <- preference_data %>%
+  mutate(
+    time.with.trained.object =
+      case_when(
+        trained.object.side == "R" ~ time.with.right.object,
+        trained.object.side == "L" ~ time.with.left.object
+      )
+  )
+
+## Creating 'time with untrained object'
+preference_data <- preference_data %>%
+  mutate(
+    time.with.untrained.object =
+      case_when(
+        trained.object.side == "L" ~ time.with.right.object,
+        trained.object.side == "R" ~ time.with.left.object
+      )
+  )
+
+## Creating 'rewarding object preference'
+preference_data <- preference_data %>%
+  mutate(
+    rewarding.object.preference =
+      (time.with.trained.object - time.with.untrained.object)
+  )
+
+## Creating 'proportional rewarding object preference'
+preference_data <- preference_data %>%
+  mutate(
+    rewarding.object.preference.prop =
+      (
+        time.with.trained.object / (time.with.trained.object + time.with.untrained.object)
+      )
+  )
+
+## Creating 'time.with.both.objects'
+preference_data <- preference_data %>%
+  mutate(
+    time.with.both.objects = (time.with.left.object + time.with.right.object)
+  )
+```
+
+</div>
+
+***
+
+## Models
+
+For this project I analysed the data using linear models and linear mixed effect
+models with the `lm()` function and the `lmer()` function from `lme4` package.
+P-values and effective degrees of freedom were obtained using the `lmerTest`
+package. Model residuals were checked they met distributional assumptions with
+the `DHARMa` package, you can click the ‘See Model Residuals’ button below the
+model formulas to see the residual diagnostic plots produced by `DHARMa` for
+that particular model.
+
+### Model 1
+
+I first asked whether the rewarding object preference of an individual 
+changes between the initial test trial and the final test trial as well as whether 
+object colour influences this. I initially fit a linear mixed effects model with a
+random effect of individual ID but there was a singular fit as a result of individual ID explaining very little variance. I therefore switched to a linear 
+model.
+
+  - **Response variable:** `rewarding.object.preference` is the time (seconds)
+    spent near the trained object subtracted by the time spent near the
+    untrained object
+  - **Fixed effect:** `rewarding.object.colour` is the colour of the trained
+    object
+  - **Fixed effect:** `trial` is the identity of the training trial.
+  
+```{r full-model-1, echo=TRUE}
+preference_model <-
+  lm(rewarding.object.preference ~ trial * object.colour,
+    data = preference_data
+  )
+```
+
+```{r tidying-model-1, echo=FALSE}
+# Tidy model 1
+tidy_preference_model <- broom.mixed::tidy(preference_model)
+
+# Format p value
+tidy_preference_model$p.value <- format_p_value(tidy_preference_model$p.value)
+
+# Rename columns 
+tidy_preference_model <- rename_tidy_lme4_cols(tidy_preference_model)
+```
+
+#### Results
+
+```{r full-plot, echo=FALSE, fig.width=10}
+testing_data_x_axis_labels <- c("Initial", "Final")
+
+ggplot(
+  preference_data,
+  aes(
+    x = trial,
+    y = rewarding.object.preference,
+    color = object.colour
+  )
+) +
+  theme_cowplot() +
+  geom_point(alpha = 0.4) +
+  geom_line(aes(group = id), alpha = 0.4) +
+  stat_summary(
+    fun = "mean",
+    geom = "point",
+    size = 4.5,
+    shape = 15
+  ) +
+  stat_summary(
+    fun = "mean",
+    geom = "line",
+    aes(group = object.colour)
+  ) +
+  ylab("Rewarding object preference (sec)") +
+  xlab("Trial") +
+  facet_grid(~object.colour) +
+  scale_color_manual(values = color_values) +
+  geom_hline(
+    yintercept = 0,
+    linetype = "dashed"
+  ) +
+  scale_x_discrete(labels = testing_data_x_axis_labels) +
+  theme(
+    legend.position = "none",
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 14, face = "bold"),
+    strip.background = element_rect(
+      fill = "#FFFFFF"
+    )
+  )
+```
+
+What we see is that trial, object colour as well as all trial X object colour interactions have no significant effect on the preference for the trained object. 
+
+```{r model-1-results, echo=FALSE}
+# Model 1 results
+knitr::kable(tidy_preference_model %>%
+  dplyr::mutate_if(is.numeric, round, digits = 3),
+  caption = "Linear mixed effect model results") %>%
+  kable_styling()
+```
+
+We can investigate this further by looking at the difference in the change in the trained object preference between final test and initial test by comparing the estimated marginal means. 
+
+```{r getting-model-1-effects, echo=TRUE}
+# Getting model estimated marginal means with 'emmeans' package
+preference_model_emmeans <- emmeans::emmeans(preference_model,
+  specs = ~ trial:object.colour
+)
+
+# Subtracting final test trial emmean from the initial test trial emmean
+change_in_object_preference_emmeans <- as.data.frame(preference_model_emmeans) %>%
+  group_by(object.colour) %>%
+  summarise(last(emmean) - first(emmean)) %>%
+  rename("Trained object colour" = 1, "Change in trained object preference" = 2)
+```
+
+What we see is that most effect sizes are very small so it seems guppies did not respond to training in this experiment. 
+
+```{r, echo=FALSE}
+kable(change_in_object_preference_emmeans,
+      caption = "") %>% 
+  kable_styling()
+```
+
+</br>
+
+#### Sex differences
+
+I wasn't able to combine sex into a three-way interaction model as my sample for males is smaller than my sample for females leading to rank-deificiency. Therefore, to look at sex differences I ran the data for males and females in separate models. I don't report the results for these additional models since I found no differences in the results between the sexes however the code to make these models is presented below. 
+
+```{r extract-females, echo=TRUE}
+# Extract females only
+female_preference_data <- preference_data %>% filter(sex == "F")
+
+# Extract males only
+male_preference_data <- preference_data %>% filter(sex == "M")
+```
+
+```{r}
+male_preference_model <-
+  lmer(rewarding.object.preference ~ trial * object.colour + (1 | id),
+    data = male_preference_data
+  )
+```
+
+```{r, message=FALSE, warning=FALSE}
+female_preference_model <-
+  lmer(rewarding.object.preference ~ trial * object.colour + (1 | id),
+    data = female_preference_data
+  )
+```
+### Model 2
+
+Since there doesn't seem to be an increase in the preference for the rewarded object I wanted to see if fish just increased the time spent near both objects indiscriminately. I therefore asked whether time spent near both objects increases. To do this I fit a linear mixed effects model.
+
+  - **Response variable:** `time.with.both.objects` is the time (seconds)
+    spent near the trained object and the time spent near the untrained object
+  - **Fixed effect:** `rewarding.object.colour` is the colour of the trained
+    object
+  - **Fixed effect:** `trial` is the identity of the training trial.
+  - **Random effect:** `id` is the identity of the guppy
+
+```{r model-2, echo=TRUE}
+both_objects_model <-
+  lmer(time.with.both.objects ~ trial * object.colour + (1 | id),
+    data = preference_data
+  )
+```
+
+#### Results
+
+```{r both-objects-plot, echo=FALSE, fig.width=10}
+testing_data_x_axis_labels <- c("Initial", "Final")
+
+ggplot(
+  preference_data,
+  aes(
+    x = trial,
+    y = time.with.both.objects,
+    color = object.colour
+  )
+) +
+  theme_cowplot() +
+  geom_point(alpha = 0.4) +
+  geom_line(aes(group = id), alpha = 0.4) +
+  stat_summary(
+    fun = "mean",
+    geom = "point",
+    size = 4.5,
+    shape = 15
+  ) +
+  stat_summary(
+    fun = "mean",
+    geom = "line",
+    aes(group = object.colour)
+  ) +
+  ylab("Time near both objects (sec)") +
+  xlab("Trial") +
+  facet_grid(~object.colour) +
+  scale_color_manual(values = color_values) +
+  scale_x_discrete(labels = testing_data_x_axis_labels) +
+  theme(
+    legend.position = "none",
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 14, face = "bold"),
+    strip.background = element_rect(
+      fill = "#FFFFFF"
+    )
+  )
+```
+
+It seems only guppies trained to green objects and guppies trained to red objects increased their time spent near both objects. It's unclear why this should be the case. Green and red have some evidence for being attractive colours to guppies (along with orange) but why this should lead to an indiscriminate increase in time spent near both objects is not immediately clear to me. 
+
+***
+
+## Data exploration 
+
+These models and data visualizations relate to aspects of the experiment that were not *a priori* part of my main research question *i.e.* whether the preference for the trained object would be higher at final test than initial test.
+
+### Thigmotaxis 
+
+Thigmotaxis is the tendency for individuals to stay close to walls when in an open space. It typically is used as a measure of anxiety since anxiolytics reduce the occurrence of thigmotaxis. Here I measured used the amount of time spent in the periphery as my measure of thigmotaxis. To get an idea of how much thigmotaxis behaviour there was in the experiment I calculated the mean time spent in the periphery and the mean time spent in the center and divided the mean time in periphery by the total trial time which is the sum of both measures. 
+
+<button class="btn btn-primary" data-toggle="collapse" data-target="#variable-creation-code2"> See variable creation code </button>  
+<div id="variable-creation-code2" class="collapse">  
+
+```{r, echo=TRUE}
+# Getting mean time spent in periphery
+mean_time_in_periphery <- (preference_data %>%
+  summarise(
+    mean(
+      time.in.periphery
+    )
+  ))[1, 1]
+
+# Getting mean time spent in center
+mean_time_in_center <- (preference_data %>%
+  summarise(
+    mean(
+      time.in.center
+    )
+  ))[1, 1]
+
+# Calculating proportion of time spent in periphery
+proportion_time_in_periphery <-
+  mean_time_in_periphery / (mean_time_in_center + mean_time_in_periphery)
+```
+
+</div>
+
+</br>
+
+The guppies in this experiment spent the vast majority of their time in the periphery
+of the tank, a behaviour known as thigmotaxis. Trials lasted 600 seconds and guppies spent on average `r mean_time_in_periphery %>% round(1)` seconds (`r (proportion_time_in_periphery*100) %>% round(1)`% of the trial length) in the periphery of the tank.I looked to see whether there was an effect of sex, trial, or their interaction on the amount of time spent in the periphery of the tank. 
+
+```{r}
+thigmotaxis_model <- lmer(time.in.periphery ~ trial * sex  + (1 | id),
+                          data = preference_data)
+```
+
+What I find is that there is only a significant effect of trial on time spent in the periphery. Guppies surprisingly spent *more* time in the periphery during the re-test trial than they did during the initial test trial regardless of sex. This would seem to suggest that I am mainly observing anxiety-based behaviour during my assays rather than measuring any meaningful object preference. Habituation to the test tank environment is likely to be a crucial consideration for similar experiments. 
+
+```{r, echo=FALSE, fig.cap="Estimated marginal means plotted above raw data"}
+source("R/plot-trial-sex-interactions.R")
+
+# Getting estimated marginal means and confidence intervals
+thigmotaxis_model_emmeans_data <- emmip(thigmotaxis_model, sex ~ trial, 
+                           CIs = TRUE, 
+                           plotit = FALSE)
+
+# Getting x-axis labels 
+thigmotaxis_data_x_axis_labels <- c("Initial test", "Final test")
+
+# Calling plot function 
+plot_trial_sex_interaction(model_emmeans = thigmotaxis_model_emmeans_data, 
+                           raw_y_variable = preference_data$time.in.periphery, 
+                           raw_data = preference_data) +
+  scale_x_discrete(labels = thigmotaxis_data_x_axis_labels) +
+  theme(
+    legend.position = "right",
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 14, face = "bold")
+  ) +
+  ylab("Time in periphery (sec)") +
+  xlab("Trial")
+```
+
+### Overall activity 
+
+I also looked to see whether there was an effect of trial, sex, and their interaction on total distance moved using a linear mixed effect model. 
+
+```{r}
+activity_model <- lmer(distance.moved ~ trial * sex  + (1 | id),
+                          data = preference_data)
+```
+
+```{r, echo=FALSE}
+kable(
+  broom.mixed::tidy(activity_model)[1:4, ] %>%
+    select(-effect, -group)
+    %>%
+    dplyr::mutate_if(is.numeric, round, digits = 3),
+  caption = ""
+) %>%
+  kable_styling()
+```
+
+
+I found independent effects of sex and trial. All guppies moved less during the final test trial and males moved more than females. Of note is there is a moderate effect size for the interaction effect though it does not reach significance. The effect suggests that females decreased their movement during the final test more than males did. 
+
+```{r, echo=FALSE, fig.cap="Estimated marginal means plotted above raw data"}
+# Getting estimated marginal means and confidence intervals
+activity_model_emmeans_data <- emmip(activity_model, 
+                                        sex ~ trial, 
+                           CIs = TRUE, 
+                           plotit = FALSE)
+
+plot_trial_sex_interaction(model_emmeans = activity_model_emmeans_data, 
+                           raw_y_variable = preference_data$distance.moved, 
+                           raw_data = preference_data) +
+  scale_x_discrete(labels = thigmotaxis_data_x_axis_labels) +
+  theme(
+    legend.position = "right",
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 14, face = "bold")
+  ) +
+  ylab("Distance moved (cm)") +
+  xlab("Trial")
+```
+
+
+
+### Object interactions
+
+I wanted to investigate whether there were any notable sex differences in the time spent near both objects. I used a linear mxied effects model to do so. 
+
+```{r}
+time_with_both_objects_model <- lmer(time.with.both.objects ~ trial * sex  + (1 | id),
+                          data = preference_data)
+```
+
+```{r, echo=FALSE}
+kable(
+  broom.mixed::tidy(time_with_both_objects_model)[1:4, ] %>%
+    select(-effect, -group)
+    %>%
+    dplyr::mutate_if(is.numeric, round, digits = 3),
+  caption = ""
+) %>%
+  kable_styling()
+```
+
+I found no significant effects of trial, sex, or their interaction. The time spent near both objects was essentially the same across all levels. 
+
+```{r, echo=FALSE, fig.cap="Estimated marginal means plotted above raw data"}
+# Getting estimated marginal means and confidence intervals
+time_with_both_objects_model_emmeans_data <- emmip(time_with_both_objects_model, 
+                                        sex ~ trial, 
+                           CIs = TRUE, 
+                           plotit = FALSE)
+
+plot_trial_sex_interaction(model_emmeans = time_with_both_objects_model_emmeans_data, 
+                           raw_y_variable = preference_data$time.with.both.objects, 
+                           raw_data = preference_data) +
+  scale_x_discrete(labels = thigmotaxis_data_x_axis_labels) +
+  theme(
+    legend.position = "right",
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 14, face = "bold")
+  ) +
+  ylab("Time with both objects (sec)") +
+  xlab("Trial")
+```
+
+
+
+
+
+
+
