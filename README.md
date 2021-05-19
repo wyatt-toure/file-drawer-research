@@ -22,10 +22,13 @@ specific objects shifted via food reinforcement. These gave rise to the
 following experiments.
 
 - Object preferences in guppies
+
 This study tried to determine whether guppies prefer a coloured object over a black and white one.
 
 - Novel object recognition in Trinidadian guppies 
+
 This study tried to determine whether guppies distinguish behaviourally between a novel object and a familiar obe
 
 - Shifting object preferences in Trinidadian guppies (version 1)
+
 This study tried to determine whether guppies could have their preference for specific objects shifted via food reinforcement
