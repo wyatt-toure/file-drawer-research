@@ -2,6 +2,8 @@
 
 <img src="file-drawer-logo.svg" height="200" align="right"/>
 
+*Note this is a work in progress*
+
 I've had a good deal of experiments that either did not pan out, were flawed, 
 or simply may not be very high impact *e.g.* replications. I thought it would 
 be a shame for those experiments to live in my computer for all eternity. I 
