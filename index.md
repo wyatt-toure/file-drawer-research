@@ -39,6 +39,8 @@ knit: (function(input, ...) {
 
 ![](file-drawer-logo.svg){style="float: right; margin: 0% 0% 0% 5%;" width="300"}
 
+*Note this is a work in progress*
+
 Not all the projects that are done during research necessarily make it into a paper. This can happen for a number of reasons. The work might be low impact (*e.g.,* it is a replication), flawed (*e.g.,* low sample size per experimental treatment), the animals simply may not respond as you thought they would to your experimental design, or a combination of the three. In the course of my work I've conducted some of these studies, mainly to establish as a stepping stone in establishing ground truths before proceeding to more complex questions. I have decided to write up these projects for posterity in case the information proves useful to someone in my lab or other laboratories more broadly.
 
 On this site you will find brief project reports for these experiments as well as the code and data to produce the analyses I did. The **Reports** contain a summary of the rationale for the experiment, the methods, the key findings and the main conclusions I made. The **Analyses** contain a write up of the data preparation, data exploration, and execution of the main models as well as the code to conduct these tasks in R. If you are only in the main findings, the reports would be the documents to read. I have left the projects mainly written and analysed as I did when I conducted and first wrote up the studies but there are things I would have changed looking back. I note what these changes as they arise throughout. If another experiment or project goes into my file drawer I will add them here. For now a list of the current file drawered projects are below.
